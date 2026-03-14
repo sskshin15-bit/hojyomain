@@ -94,7 +94,7 @@ export function GlossaryText({ text, glossary, className = "", variant = "defaul
                 <span
                   role="button"
                   tabIndex={0}
-                  className="cursor-help border-b-2 border-dashed border-slate-400 text-slate-800 decoration-slate-400 underline-offset-2 hover:border-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 rounded px-0.5"
+                  className="cursor-help underline decoration-dashed decoration-amber-500 underline-offset-2 hover:decoration-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1 rounded px-0.5"
                   onClick={(e) => {
                     e.preventDefault()
                     setOpenKey((k) => (k === seg.key ? null : seg.key))

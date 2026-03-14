@@ -9,13 +9,13 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="ml-64 flex min-h-screen flex-col">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
+        <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-8">
           {/* Breadcrumbs */}
           <div className="flex items-center gap-2 text-sm">
             <span className="text-slate-500">ホーム</span>
@@ -55,7 +55,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-8">{children}</main>
       </div>
     </div>
   )

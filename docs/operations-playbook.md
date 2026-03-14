@@ -93,14 +93,30 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase サービスロールキー（同期・サーバー用） |
 | `CRON_SECRET` | Cron API 認証用（本番では強力な値に変更すること） |
 | `JGRANTS_API_BASE_URL` | jGrants API のベース URL（例: `https://api.jgrants-portal.go.jp/exp/v1`） |
-| `ADMIN_BASIC_USER` / `ADMIN_BASIC_PASSWORD` | 管理画面（/admin）Basic 認証（必須） |
+| `ADMIN_BASIC_USER` / `ADMIN_BASIC_PASSWORD` | （廃止）以前の Basic 認証。現在は Supabase Auth + profiles.role で RBAC |
 | `ADMIN_WEBHOOK_URL` | 補助金同期後の通知用 Webhook（新規・needs_review あり時に POST） |
 | `ADMIN_LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API のチャネルアクセストークン（通知送信用） |
 | `ADMIN_LINE_USER_ID` | 通知を送る LINE のユーザーID（U で始まるID） |
+| `FETCH_PROXY_URL` | リンク先取得時にプロキシ経由で取得する場合の URL（例: `http://proxy.example.com:8080`）。未設定なら直アクセス |
+| `HTTPS_PROXY` / `HTTP_PROXY` | 上記と同様、FETCH_PROXY_URL 未設定時に参照される |
 
 ---
 
-## 4. API取得データの管理フロー検証
+## 4. リンク先取得の改善（概要内URLのクロール）
+
+リンク先取得では以下で取得率を上げています。
+
+- **ブラウザ風 User-Agent**（Chrome 風）で Bot ブロックを軽減
+- **リトライ**（最大 3 回、2 秒間隔）
+- **タイムアウト 30 秒**
+- **Referer / Accept-Language** ヘッダを付与
+- **プロキシ対応**（`FETCH_PROXY_URL` または `HTTPS_PROXY` 設定時）
+
+データセンター IP をブロックするサイトでは、Residential プロキシ（Bright Data など）を `FETCH_PROXY_URL` に指定すると改善する場合があります。
+
+---
+
+## 5. API取得データの管理フロー検証
 
 補助金データの取得・保存が正しく動いているか確認できます。
 
@@ -133,8 +149,20 @@ http://localhost:3000/api/verify-subsidy-flow
 ### 管理者ダッシュボード（/admin）
 
 - `/admin/subsidies` で補助金の一覧・編集・フラグ確定が可能
-- **Basic 認証**: `ADMIN_BASIC_USER` と `ADMIN_BASIC_PASSWORD` を設定すると、`/admin` 配下が保護される
+- **認証**: Supabase Auth でログインし、`profiles` テーブルの `role='admin'` を持つユーザーのみアクセス可能
+- ログインしていない場合は `/login?redirectTo=/admin/subsidies` にリダイレクト
 - ステータス（draft / needs_review / published）とフラグ確認状況でフィルターし、「保存してフラグを確定する」で flags_reviewed=true にできる
+
+#### 初回管理者の設定
+
+初回は `profiles` に `role='admin'` を持つ行が必要です。Supabase ダッシュボード（SQL Editor）で実行:
+
+```sql
+-- 対象ユーザーの auth.users.id を確認後、以下で admin に設定
+insert into public.profiles (id, role)
+select id, 'admin' from auth.users where email = '管理者のメールアドレス@example.com'
+on conflict (id) do update set role = 'admin';
+```
 
 ### マイグレーション（subsidies マスター仕様）
 
@@ -154,7 +182,7 @@ http://localhost:3000/api/verify-subsidy-flow
 
 ---
 
-## 5. トラブルシューティング
+## 6. トラブルシューティング
 
 ### 「No subsidies to sync.」と表示される
 
@@ -181,9 +209,15 @@ http://localhost:3000/api/verify-subsidy-flow
 
 - `pkill -f "next dev"` で既存プロセスを終了してから再起動
 
+### リンク先取得率が低い
+
+- 管理画面の「リンク先・PDF」で失敗理由（`error_message`）を確認
+- データセンター IP ブロックが疑われる場合は `FETCH_PROXY_URL` に Residential プロキシを設定
+- 一部サイトは JavaScript 必須のため静的取得では成功しないことがある
+
 ---
 
-## 6. Vercel へのデプロイ（かんたん解説）
+## 7. Vercel へのデプロイ（かんたん解説）
 
 このアプリをインターネット上に公開する手順です。
 
@@ -267,7 +301,7 @@ http://localhost:3000/api/verify-subsidy-flow
 
 ---
 
-## 7. 関連ドキュメント
+## 8. 関連ドキュメント
 
 - [README_subsidies.md](../README_subsidies.md) … 補助金テーブルの編集方法
 - [docs/subsidy-test-checklist.md](./subsidy-test-checklist.md) … テスト手順

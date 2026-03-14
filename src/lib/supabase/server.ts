@@ -1,8 +1,8 @@
 import { cookies } from "next/headers"
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { createServerClient } from "@supabase/ssr"
 
-export function createServerClientWithAuth() {
-  const cookieStore = cookies()
+export async function createServerClientWithAuth() {
+  const cookieStore = await cookies()
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -12,15 +12,17 @@ export function createServerClientWithAuth() {
 
   return createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value
+      getAll() {
+        return cookieStore.getAll()
       },
-      set(_name: string, _value: string, _options: CookieOptions) {
-        // In Server Components we cannot write cookies directly.
-        // Cookie refresh is handled via middleware/proxy instead.
-      },
-      remove(_name: string, _options: CookieOptions) {
-        // See comment in set(): cookie mutations are handled elsewhere.
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          )
+        } catch {
+          // Server Components cannot write cookies; refresh is handled in middleware
+        }
       },
     },
   })

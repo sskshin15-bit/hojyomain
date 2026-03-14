@@ -50,7 +50,12 @@ function LoginForm() {
         })
         if (signInError) throw signInError
         if (session) {
-          router.push("/screenings")
+          const redirectTo = searchParams.get("redirectTo")
+          const safeRedirect =
+            redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+              ? redirectTo
+              : "/screenings"
+          router.push(safeRedirect)
           router.refresh()
         }
       }

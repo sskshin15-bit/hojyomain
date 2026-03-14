@@ -1,18 +1,28 @@
+import TurndownService from "turndown"
+import { gfm } from "turndown-plugin-gfm"
+
+const turndownService = new TurndownService({
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
+})
+turndownService.use(gfm)
+
 /**
- * HTMLタグを正規表現で完全除去（高速クレンジング）
+ * HTML を Markdown に変換する（表・リストの構造を維持）
+ * jGrants の公募要領等で、AI が要件を正しく読めるようにする
  */
 export function stripHtml(html: string): string {
   if (typeof html !== "string") return ""
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim()
+  const trimmed = html.trim()
+  if (!trimmed) return ""
+
+  try {
+    const markdown = turndownService.turndown(trimmed)
+    return markdown
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]+/g, " ")
+      .trim()
+  } catch {
+    return trimmed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+  }
 }

@@ -61,7 +61,48 @@ export async function fetchSubsidiesByKeyword(
 }
 
 /**
+ * チャンク取得（1回のCron実行用・最大 N ページのみ）
+ * Vercel 5分タイムアウト回避のため、全件ループは行わない
+ */
+export async function fetchSubsidiesChunk(
+  keyword: string,
+  options: { start: number; maxPages?: number }
+): Promise<{ items: JgrantsSubsidy[]; nextOffset: number; hasMore: boolean }> {
+  const { start, maxPages = 3 } = options
+  const seen = new Set<string>()
+  const items: JgrantsSubsidy[] = []
+  let currentStart = start
+  let pagesFetched = 0
+
+  while (pagesFetched < maxPages) {
+    await new Promise((r) => setTimeout(r, 1000))
+    const page = await fetchSubsidiesByKeyword(keyword, {
+      limit: PAGE_SIZE,
+      start: currentStart,
+    })
+    for (const s of page) {
+      if (s.id && !seen.has(String(s.id))) {
+        seen.add(String(s.id))
+        items.push(s)
+      }
+    }
+    pagesFetched += 1
+    currentStart += PAGE_SIZE
+    if (page.length < PAGE_SIZE) {
+      return { items, nextOffset: 0, hasMore: false }
+    }
+  }
+
+  return {
+    items,
+    nextOffset: currentStart,
+    hasMore: true,
+  }
+}
+
+/**
  * 全件取得（ページネーション + 1リクエストごとに1秒スリープでRate Limit回避）
+ * ※手動テスト用。本番Cronでは fetchSubsidiesChunk を使用
  */
 export async function fetchAllSubsidiesFromJgrants(): Promise<JgrantsSubsidy[]> {
   const seen = new Set<string>()
@@ -105,4 +146,23 @@ export async function fetchMetiSubsidiesFromJgrants(): Promise<JgrantsSubsidy[]>
   }
 
   return all
+}
+
+/**
+ * 補助金詳細を1件取得（detail, subsidy_catch_phrase を含む）
+ */
+export async function fetchSubsidyDetailById(id: string): Promise<JgrantsSubsidy | null> {
+  const base = (process.env.JGRANTS_API_BASE_URL || DEFAULT_BASE).replace(/\/$/, "")
+  const url = `${base}/public/subsidies/id/${encodeURIComponent(id)}`
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 0 },
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as { result?: JgrantsSubsidy[] }
+    return json.result?.[0] ?? null
+  } catch {
+    return null
+  }
 }

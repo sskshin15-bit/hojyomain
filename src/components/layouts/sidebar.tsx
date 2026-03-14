@@ -6,10 +6,12 @@ import {
   LayoutDashboard,
   Users,
   Sparkles,
+  Briefcase,
   History,
   HandCoins,
   Settings,
   Shield,
+  FileCheck,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -18,8 +20,10 @@ const menuItems = [
   { icon: LayoutDashboard, label: "ダッシュボード", href: "/" },
   { icon: Users, label: "顧問先CRM", href: "/clients" },
   { icon: Sparkles, label: "AI 5秒スクリーニング", href: "/screenings" },
+  { icon: Briefcase, label: "案件", href: "/projects" },
   { icon: History, label: "提案・ロードマップ履歴", href: "/history" },
   { icon: HandCoins, label: "コンサル紹介・報酬管理", href: "/referrals" },
+  { icon: FileCheck, label: "補助金申請アシスト", href: "#", comingSoon: true },
   { icon: Settings, label: "事務所設定", href: "/settings" },
 ]
 
@@ -27,7 +31,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-64 bg-slate-900 flex flex-col flex-shrink-0">
+    <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col bg-gray-900">
       {/* Brand */}
       <div className="p-5 border-b border-slate-700/50">
         <div className="flex items-center gap-3">
@@ -46,10 +50,24 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
         {menuItems.map((item) => {
+          const isComingSoon = "comingSoon" in item && item.comingSoon
           const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href)
+            !isComingSoon &&
+            (item.href === "/" ? pathname === "/" : pathname.startsWith(item.href))
+          if (isComingSoon) {
+            return (
+              <span
+                key={item.label}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 cursor-not-allowed"
+              >
+                <item.icon className="w-5 h-5 opacity-60" />
+                {item.label}
+                <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 bg-slate-700 text-slate-400">
+                  準備中
+                </Badge>
+              </span>
+            )
+          }
           return (
             <Link
               key={item.label}

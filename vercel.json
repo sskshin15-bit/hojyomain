@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/sync-meti-subsidies",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/check-minimum-wage",
+      "schedule": "0 1 * * *"
     }
   ]
 }

@@ -1,48 +1,62 @@
+import { createServerClient } from "@supabase/ssr"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  if (!pathname.startsWith("/admin")) {
-    return NextResponse.next()
+
+  const response = NextResponse.next({ request })
+
+  const needsAuth = pathname.startsWith("/admin") || pathname.startsWith("/projects")
+  if (!needsAuth) {
+    return response
   }
 
-  const authHeader = request.headers.get("authorization")
-  const user = process.env.ADMIN_BASIC_USER?.trim()
-  const pass = process.env.ADMIN_BASIC_PASSWORD?.trim()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!user || !pass) {
-    return new NextResponse("Admin auth not configured (ADMIN_BASIC_USER / ADMIN_BASIC_PASSWORD).", {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return new NextResponse("Supabase environment variables not configured.", {
       status: 500,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     })
   }
 
-  if (!authHeader?.startsWith("Basic ")) {
-    return new NextResponse("Basic authentication required.", {
-      status: 401,
-      headers: {
-        "WWW-Authenticate": 'Basic realm="Admin"',
-        "Content-Type": "text/plain; charset=utf-8",
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
       },
-    })
-  }
-
-  try {
-    const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf-8")
-    const [u, p] = decoded.split(":", 2)
-    if (u === user && p === pass) {
-      return NextResponse.next()
-    }
-  } catch {
-    // invalid base64
-  }
-
-  return new NextResponse("Invalid credentials.", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Admin"',
-      "Content-Type": "text/plain; charset=utf-8",
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options)
+        })
+      },
     },
   })
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    const redirectUrl = new URL("/login", request.url)
+    redirectUrl.searchParams.set("redirectTo", pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
+  if (pathname.startsWith("/admin")) {
+    const role = profile?.role ?? "tax_accountant"
+    if (role !== "admin") {
+      return NextResponse.redirect(new URL("/screenings", request.url), 302)
+    }
+  }
+
+  return response
 }
