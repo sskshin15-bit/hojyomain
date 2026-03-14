@@ -22,15 +22,26 @@ export type JgrantsListResponse = {
   result?: JgrantsSubsidy[]
 }
 
-export async function fetchAllSubsidiesFromJgrants(): Promise<JgrantsSubsidy[]> {
-  const base = (process.env.JGRANTS_API_BASE_URL || DEFAULT_BASE).replace(/\/$/, "")
+const PAGE_SIZE = 100
 
+export type FetchSubsidiesOptions = {
+  limit?: number
+  start?: number
+}
+
+export async function fetchSubsidiesByKeyword(
+  keyword: string,
+  options?: FetchSubsidiesOptions
+): Promise<JgrantsSubsidy[]> {
+  const base = (process.env.JGRANTS_API_BASE_URL || DEFAULT_BASE).replace(/\/$/, "")
   const params = new URLSearchParams({
-    keyword: "補助",
+    keyword,
     sort: "created_date",
     order: "DESC",
     acceptance: "1",
   })
+  if (options?.limit != null) params.set("limit", String(options.limit))
+  if (options?.start != null) params.set("start", String(options.start))
   const url = `${base}/public/subsidies?${params.toString()}`
   let res: Response
   try {
@@ -47,4 +58,51 @@ export async function fetchAllSubsidiesFromJgrants(): Promise<JgrantsSubsidy[]> 
   }
   const json = (await res.json()) as JgrantsListResponse
   return json.result ?? []
+}
+
+/**
+ * 全件取得（ページネーション + 1リクエストごとに1秒スリープでRate Limit回避）
+ */
+export async function fetchAllSubsidiesFromJgrants(): Promise<JgrantsSubsidy[]> {
+  const seen = new Set<string>()
+  const all: JgrantsSubsidy[] = []
+  let start = 0
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 1000))
+    const page = await fetchSubsidiesByKeyword("補助", { limit: PAGE_SIZE, start })
+    for (const s of page) {
+      if (s.id && !seen.has(String(s.id))) {
+        seen.add(String(s.id))
+        all.push(s)
+      }
+    }
+    if (page.length < PAGE_SIZE) break
+    start += PAGE_SIZE
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  return all
+}
+
+/** 経済産業省関連の補助金を複数キーワードで取得（重複排除済み） */
+export async function fetchMetiSubsidiesFromJgrants(): Promise<JgrantsSubsidy[]> {
+  const keywords = ["IT導入", "ものづくり", "小規模事業者", "経済産業", "生産性向上"]
+  const seen = new Set<string>()
+  const all: JgrantsSubsidy[] = []
+
+  for (const kw of keywords) {
+    try {
+      const items = await fetchSubsidiesByKeyword(kw)
+      for (const s of items) {
+        if (s.id && !seen.has(String(s.id))) {
+          seen.add(String(s.id))
+          all.push(s)
+        }
+      }
+      await new Promise((r) => setTimeout(r, 1200))
+    } catch {
+      /* skip failed keyword */
+    }
+  }
+
+  return all
 }

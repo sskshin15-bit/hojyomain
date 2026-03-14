@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-subsidies",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-meti-subsidies",
+      "schedule": "0 3 * * *"
     }
   ]
 }
